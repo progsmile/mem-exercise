@@ -13,10 +13,13 @@ const theme = createTheme({
             main: '#f08080',
             contrastText: '#ffdab9'
         },
+        secondary: {
+            main: '#f4978e',
+        },
     },
 });
 
-const root = ReactDOM.createRoot(document.getElementById('root'));
+const root = ReactDOM.createRoot(document.getElementById('root')!);
 root.render(
   <React.StrictMode>
       <ThemeProvider theme={theme}>

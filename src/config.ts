@@ -1,6 +1,6 @@
 const config = {
-    pronounceInterval: 1000,
-    randomWordsCount: 5
+    randomWordsCount: 7,
+    lang: 'en-US',
 }
 
 export default config
