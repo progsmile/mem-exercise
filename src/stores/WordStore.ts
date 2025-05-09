@@ -24,7 +24,8 @@ class WordStore {
             recognizedWords: observable,
             listenWords: action,
             repeatWords: action,
-            doneRepeating: action
+            doneRepeating: action,
+            startAgain: action,
         });
 
         getVoices().then((voices) => {
@@ -36,14 +37,19 @@ class WordStore {
 
     async listenWords(): Promise<void> {
         this.generatedWords = getRandomWords();
-        const randomVoice: SpeechSynthesisVoice = sample(this.voices) || this.voices[0];
+        console.info(`Pronouncing words: ${this.generatedWords}`)
 
-        await runInAction(async () => {
-            this.isListening = true;
-            await speakText(this.generatedWords.join('. '), randomVoice);
+        const randomVoice: SpeechSynthesisVoice = sample(this.voices) || this.voices[0];
+        console.info(`Pronouncing name: ${randomVoice.name}`)
+
+        this.isListening = true;
+        for (const word of this.generatedWords) {
+            await speakText(word, randomVoice);
+        }
+        runInAction(() => {
             this.isListening = false;
             this.stage = 'listen';
-        });
+        })
     }
 
     async repeatWords(): Promise<void> {
@@ -71,7 +77,9 @@ class WordStore {
         };
         // @ts-ignore
         this.recognition.onresult = (event) => {
-            this.recognizedWords = new Set(event.results[0][0].transcript.split(' ').map((word: string) => word.toLowerCase()));
+            runInAction(() => {
+                this.recognizedWords = new Set(event.results[0][0].transcript.split(' ').map((word: string) => word.toLowerCase()));
+            })
         };
     }
 }
