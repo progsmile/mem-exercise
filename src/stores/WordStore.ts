@@ -4,6 +4,7 @@ import config from "../config";
 import * as randomWords from "random-words";
 import isString from "lodash/isString";
 import { Stages } from "../types";
+import settingsStore from "./SettingsStore";
 
 class WordStore {
     stage: Stages = 'initial';
@@ -106,6 +107,6 @@ function speakText(text: string, voice: SpeechSynthesisVoice): Promise<void> {
 }
 
 function getRandomWords(): string[] {
-    const words = randomWords.generate(config.randomWordsCount)
+    const words = randomWords.generate(settingsStore.randomWordsCount)
     return isString(words) ? [words] : words;
 }

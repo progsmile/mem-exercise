@@ -9,15 +9,13 @@ import Typography from '@mui/material/Typography';
 import ReplayIcon from '@mui/icons-material/Replay';
 
 function Home(): JSX.Element {
-    console.log(wordStore.stage)
-
     return (
         <Box
             display="flex"
             justifyContent="center"
             alignItems="center"
             gap={2}
-            height="95vh"
+            height="60vh"
         >
             {(wordStore.stage === 'initial') && (
                 <Button

@@ -1,5 +1,4 @@
 const config = {
-    randomWordsCount: 7,
     lang: 'en-US',
 }
 
