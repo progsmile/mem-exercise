@@ -1,1 +1,1 @@
-export type Stages = 'initial' | 'listen' | 'repeat' | 'done_repeat'
+export type Stages = 'initial' | 'listen' | 'repeat' | 'done_repeat' | 'results'

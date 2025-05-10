@@ -7,12 +7,16 @@ export const RANDOM_WORDS_COUNT_MAX = 12;
 
 
 class SettingsStore {
-    randomWordsCount: number = RANDOM_WORDS_COUNT
+    randomWordsCount: number = RANDOM_WORDS_COUNT;
+    isSettingsOpen: boolean = false;
 
     constructor() {
         makeObservable(this, {
             randomWordsCount: observable,
+            isSettingsOpen: observable,
             setRandomWordsCount: action,
+            openSettings: action,
+            closeSettings: action,
         });
 
         makePersistable(this, {
@@ -24,6 +28,14 @@ class SettingsStore {
 
     setRandomWordsCount(newCount: number): void {
         this.randomWordsCount = newCount;
+    }
+
+    openSettings(): void {
+        this.isSettingsOpen = true;
+    }
+
+    closeSettings(): void {
+        this.isSettingsOpen = false;
     }
 }
 

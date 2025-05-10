@@ -1,10 +1,11 @@
-import {makeObservable, observable, action, runInAction} from "mobx";
+import { makeObservable, observable, action, runInAction } from "mobx";
 import sample from "lodash/sample";
 import config from "../config";
 import * as randomWords from "random-words";
 import isString from "lodash/isString";
 import { Stages } from "../types";
 import settingsStore from "./SettingsStore";
+import { toWords } from 'number-to-words';
 
 class WordStore {
     stage: Stages = 'initial';
@@ -15,6 +16,7 @@ class WordStore {
     recognition: SpeechRecognition | webkitSpeechRecognition;
     generatedWords: string[] = [];
     recognizedWords: Set<string> = new Set<string>();
+    correctWordsCount: number = 0
 
     constructor() {
         makeObservable(this, {
@@ -22,6 +24,7 @@ class WordStore {
             isListening: observable,
             generatedWords: observable,
             recognizedWords: observable,
+            correctWordsCount: observable,
             listenWords: action,
             repeatWords: action,
             doneRepeating: action,
@@ -37,10 +40,11 @@ class WordStore {
 
     async listenWords(): Promise<void> {
         this.generatedWords = getRandomWords();
-        console.info(`Pronouncing words: ${this.generatedWords}`)
+        this._addRecognitionGrammar(this.generatedWords)
+        console.info(`Generated words: ${this.generatedWords}`)
 
         const randomVoice: SpeechSynthesisVoice = sample(this.voices) || this.voices[0];
-        console.info(`Pronouncing name: ${randomVoice.name}`)
+        console.info(`Pronouncing name: ${randomVoice.voiceURI}`)
 
         this.isListening = true;
         for (const word of this.generatedWords) {
@@ -53,17 +57,24 @@ class WordStore {
     }
 
     async repeatWords(): Promise<void> {
-        wordStore.stage = 'repeat';
+        this.stage = 'repeat';
         this.recognition.start();
     }
 
     async doneRepeating(): Promise<void> {
         this.stage = 'done_repeat';
+        await sleep(1200);
         this.recognition.stop();
+
+        runInAction(() => {
+            this.correctWordsCount = this.generatedWords.filter(word => this.recognizedWords.has(word)).length
+            this.stage = 'results'
+        });
     }
 
-    startAgain(): void {
-        this.stage = 'initial'
+    async startAgain(): Promise<void> {
+        this.stage = 'initial';
+        await this.listenWords();
     }
 
     _initializeRecognition(): void {
@@ -71,16 +82,35 @@ class WordStore {
         this.recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
         this.recognition.lang = config.lang;
         this.recognition.continuous = true;
+        this.recognition.maxAlternatives = 5;
         // @ts-ignore
         this.recognition.onerror = (error) => {
             console.error('Error occurred in recognition: ' + error.error);
         };
         // @ts-ignore
         this.recognition.onresult = (event) => {
+            const speechResults = event.results[0];
+            const recognizedWords = new Set<string>()
+
             runInAction(() => {
-                this.recognizedWords = new Set(event.results[0][0].transcript.split(' ').map((word: string) => word.toLowerCase()));
+                for (const speechResult of speechResults) {
+                    speechResult.transcript.split(' ').forEach((word: string) => {
+                        word = normalizeNumbers(word)
+                        word = word.toLowerCase()
+                        recognizedWords.add(word)
+                    })
+                }
+                this.recognizedWords = recognizedWords;
             })
         };
+    }
+
+    _addRecognitionGrammar(words: string[]): void {
+        const grammar = `#JSGF V1.0; grammar words; public <word> = ${words.join(' | ')} ;`;
+        // @ts-ignore
+        const speechRecognitionList = new (window.SpeechGrammarList || window.webkitSpeechGrammarList)();
+        speechRecognitionList.addFromString(grammar, 1);
+        this.recognition.grammars = speechRecognitionList;
     }
 }
 
@@ -88,7 +118,7 @@ export const wordStore = new WordStore();
 
 
 async function getVoices(): Promise<SpeechSynthesisVoice[]> {
-    const predicate = (x: SpeechSynthesisVoice) => x.lang === config.lang;
+    const predicate = (x: SpeechSynthesisVoice) => x.lang === config.lang && x.voiceURI !== 'Google US English';
 
     return new Promise((resolve) => {
         let voices = speechSynthesis.getVoices();
@@ -117,4 +147,16 @@ function speakText(text: string, voice: SpeechSynthesisVoice): Promise<void> {
 function getRandomWords(): string[] {
     const words = randomWords.generate(settingsStore.randomWordsCount)
     return isString(words) ? [words] : words;
+}
+
+function normalizeNumbers(text: string): string {
+    return text.replace(/\d+/g, (match) =>
+        toWords(parseInt(match, 10)).replace(/-/g, ' ')
+    );
+}
+
+async function sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => {
+        setTimeout(() => resolve(), ms);
+    });
 }

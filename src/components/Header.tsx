@@ -1,4 +1,4 @@
-import React, { JSX, useState } from 'react';
+import React, { JSX } from 'react';
 import Box from '@mui/material/Box';
 import IconButton from '@mui/material/IconButton';
 import SettingsIcon from '@mui/icons-material/Settings';
@@ -10,11 +10,6 @@ import settingsStore, {RANDOM_WORDS_COUNT_MIN, RANDOM_WORDS_COUNT_MAX} from '../
 import range from 'lodash/range'
 
 function Header(): JSX.Element {
-    const [isSettingsOpen, setSettingsOpen] = useState(false);
-
-    const handleOpenSettings = () => setSettingsOpen(true);
-    const handleCloseSettings = () => setSettingsOpen(false);
-
     const handleRandomWordsChange = (_: Event, newValue: number | number[]) => {
         if (typeof newValue === 'number') {
             settingsStore.setRandomWordsCount(newValue);
@@ -27,13 +22,13 @@ function Header(): JSX.Element {
     return (
         <Box>
             <Box display="flex" justifyContent="flex-end" p={2}>
-                <IconButton onClick={handleOpenSettings}>
+                <IconButton onClick={() => settingsStore.openSettings()}>
                     <SettingsIcon />
                 </IconButton>
             </Box>
             <Modal
-                open={isSettingsOpen}
-                onClose={handleCloseSettings}
+                open={settingsStore.isSettingsOpen}
+                onClose={() => settingsStore.closeSettings()}
                 aria-labelledby="modal-modal-title"
                 aria-describedby="modal-modal-description"
             >

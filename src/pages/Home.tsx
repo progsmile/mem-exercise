@@ -37,16 +37,18 @@ function Home(): JSX.Element {
                 )
             }
 
-            {wordStore.stage === 'repeat' && (
+            {(wordStore.stage === 'repeat' || wordStore.stage === 'done_repeat') && (
                 <Button
                     variant="contained"
+                    loading={wordStore.stage === 'done_repeat'}
+                    loadingPosition="start"
                     startIcon={<MicIcon />}
                     onClick={() => wordStore.doneRepeating()}
                 >Done repeating</Button>
             )
             }
 
-            {wordStore.stage === 'done_repeat' && (
+            {wordStore.stage === 'results' && (
                 <Box>
                     <Button
                         variant="contained"
@@ -55,10 +57,9 @@ function Home(): JSX.Element {
                     >Start again</Button>
                     <Box>
                         <Typography color="primary" variant="h4" >Results: {" "}
-                            {wordStore.generatedWords.filter(word => wordStore.recognizedWords.has(word)).length}
-                            {" "} of {wordStore.generatedWords.length}
+                            {wordStore.correctWordsCount} {" "} of {wordStore.generatedWords.length}
                         </Typography>
-                        <Typography color="primary" variant="h5">Generated Words: {wordStore.generatedWords.join(', ')}</Typography>
+                        <Typography color="primary" variant="h5">Generated words: {wordStore.generatedWords.join(', ')}</Typography>
                         <Typography color="primary" variant="h5">Recognized words: {Array.from(wordStore.recognizedWords).join(', ')}</Typography>
                     </Box>
                 </Box>
