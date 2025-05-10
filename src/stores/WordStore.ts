@@ -1,17 +1,19 @@
 import { makeObservable, observable, action, runInAction } from "mobx";
-import sample from "lodash/sample";
 import config from "../config";
-import * as randomWords from "random-words";
-import isString from "lodash/isString";
 import { Stages } from "../types";
 import settingsStore from "./SettingsStore";
+import {getRandomVoice, speakText} from "../services/voiceService";
+import * as randomWords from "random-words";
+import isString from "lodash/isString";
 import { toWords } from 'number-to-words';
+import { soundex } from 'soundex-code'
+import { doubleMetaphone } from 'double-metaphone';
+import { distance as levenshteinDistance } from 'fastest-levenshtein';
 
 class WordStore {
     stage: Stages = 'initial';
     isListening: boolean = false;
 
-    voices: SpeechSynthesisVoice[] = [];
     // @ts-ignore
     recognition: SpeechRecognition | webkitSpeechRecognition;
     generatedWords: string[] = [];
@@ -31,10 +33,6 @@ class WordStore {
             startAgain: action,
         });
 
-        getVoices().then((voices) => {
-            this.voices = voices;
-        });
-
         this._initializeRecognition()
     }
 
@@ -43,10 +41,8 @@ class WordStore {
         this._addRecognitionGrammar(this.generatedWords)
         console.info(`Generated words: ${this.generatedWords}`)
 
-        const randomVoice: SpeechSynthesisVoice = sample(this.voices) || this.voices[0];
-        console.info(`Pronouncing name: ${randomVoice.voiceURI}`)
-
         this.isListening = true;
+        const randomVoice: SpeechSynthesisVoice = await getRandomVoice();
         for (const word of this.generatedWords) {
             await speakText(word, randomVoice);
         }
@@ -63,11 +59,36 @@ class WordStore {
 
     async doneRepeating(): Promise<void> {
         this.stage = 'done_repeat';
-        await sleep(1200);
+        await sleep(2000);
         this.recognition.stop();
 
         runInAction(() => {
-            this.correctWordsCount = this.generatedWords.filter(word => this.recognizedWords.has(word)).length
+            // Get direct word matches
+            const missedWords = this.generatedWords.filter(x => !this.recognizedWords.has(x))
+            this.correctWordsCount = this.generatedWords.length - missedWords.length
+            console.log(`missedWords`, missedWords)
+
+            // Get words that are similar
+            const recognizedList = Array.from(this.recognizedWords)
+            const correctWordsBySimilarity = missedWords.filter(missedWord => {
+                return recognizedList.some(recognizedWord => {
+                    if (phoneticMatch(missedWord, recognizedWord)) {
+                        console.log(`phoneticMatch: ${missedWord}-${recognizedWord}`)
+                        this.recognizedWords.add(missedWord)
+                        this.recognizedWords.delete(recognizedWord)
+                        return true;
+                    }
+                    if (levenMatch(missedWord, recognizedWord)) {
+                        console.log(`levenMatch: ${missedWord}-${recognizedWord}`)
+                        this.recognizedWords.add(missedWord)
+                        this.recognizedWords.delete(recognizedWord)
+                        return true;
+                    }
+                    return false;
+                })
+            })
+
+            this.correctWordsCount += correctWordsBySimilarity.length
             this.stage = 'results'
         });
     }
@@ -97,6 +118,7 @@ class WordStore {
                     speechResult.transcript.split(' ').forEach((word: string) => {
                         word = normalizeNumbers(word)
                         word = word.toLowerCase()
+                        word = word.trim()
                         recognizedWords.add(word)
                     })
                 }
@@ -117,33 +139,6 @@ class WordStore {
 export const wordStore = new WordStore();
 
 
-async function getVoices(): Promise<SpeechSynthesisVoice[]> {
-    const predicate = (x: SpeechSynthesisVoice) => x.lang === config.lang && x.voiceURI !== 'Google US English';
-
-    return new Promise((resolve) => {
-        let voices = speechSynthesis.getVoices();
-        if (voices.length) {
-            resolve(voices.filter(predicate));
-            return;
-        }
-
-        speechSynthesis.onvoiceschanged = () => {
-            voices = speechSynthesis.getVoices().filter(predicate);
-            resolve(voices);
-        };
-    });
-}
-
-function speakText(text: string, voice: SpeechSynthesisVoice): Promise<void> {
-    return new Promise((resolve) => {
-        const message = new SpeechSynthesisUtterance(text);
-        message.lang = config.lang;
-        message.voice = voice;
-        message.onend = () => resolve();
-        speechSynthesis.speak(message);
-    });
-}
-
 function getRandomWords(): string[] {
     const words = randomWords.generate(settingsStore.randomWordsCount)
     return isString(words) ? [words] : words;
@@ -160,3 +155,27 @@ async function sleep(ms: number): Promise<void> {
         setTimeout(() => resolve(), ms);
     });
 }
+
+function phoneticMatch(a: string, b: string): boolean {
+    if (soundex(a) === soundex(b)) {
+        return true;
+    }
+
+    const [primaryCodeA, secondaryCodeA] = doubleMetaphone(a);
+    const [primaryCodeB, secondaryCodeB] = doubleMetaphone(b);
+
+    return Boolean(
+        (primaryCodeA && (primaryCodeA === primaryCodeB || primaryCodeA === secondaryCodeB)) ||
+        (secondaryCodeA && (secondaryCodeA === primaryCodeB || secondaryCodeA === secondaryCodeB))
+    );
+}
+
+function levenMatch(a: string, b: string): boolean {
+    const distance = levenshteinDistance(a, b);
+    return distance <= 2;
+}
+
+// @ts-ignore
+window.phoneticMatch = phoneticMatch
+// @ts-ignore
+window.levenMatch = levenMatch
